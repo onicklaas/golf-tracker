@@ -1,4 +1,23 @@
+# Miljöer
 .venv/
+env/
+venv/
+ENV/
+
+# Python-skräp
 __pycache__/
-*.ipynb_checkpoints
+*.py[cod]
+*$py.class
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+
+# Operativsystem
 .DS_Store
+Thumbs.db
+
+# Streamlit
+.streamlit/
+
+# Data (Valfritt: Ta bort raden under om du VILL att dina rundor ska ligga på GitHub)
+*.csv
