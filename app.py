@@ -73,37 +73,47 @@ if choice == 'Registrera Runda':
             bana = st.text_input('Bana', 'Holms GK')
         with col2:
             slag = st.number_input('Antal slag', min_value=50, max_value=150, value=100)
-            hcp = st.number_input('Ditt HCP', value=21.6 if anvandare == 'Nicklas' else 25.4, format="%.1f")
+            default_hcp = 21.6 if anvandare == 'Nicklas' else 25.4
+            hcp = st.number_input('Ditt HCP', value=default_hcp, format="%.1f")
+        
+        # --- NYTT: PIN-KODS-FÄLT ---
+        pin_kod = st.text_input('Ange din personliga PIN-kod för att spara', type="password", max_chars=10)
         
         submit = st.form_submit_button('Spara runda')
 
         if submit:
-            # Sätt in raden i SQL-databasen live
-            insert_query = """
-                INSERT INTO golf_rundor (anvandare, datum, bana, tee, slag, hcp)
-                VALUES (:anvandare, :datum, :bana, :tee, :slag, :hcp)
-            """
-            with engine.connect() as conn:
-                # Ändra till text() och skicka med parametrarna som en ordbok (dict)
-                conn.execute(
-                    text(insert_query), 
-                    {
-                        "anvandare": anvandare, 
-                        "datum": datum, 
-                        "bana": bana, 
-                        "tee": 'Gul', 
-                        "slag": int(slag), 
-                        "hcp": float(hcp)
-                    }
-                )
-                conn.commit() # Sparar ändringen permanent i Postgres
+            # Hämta rätt PIN-kod från Secrets baserat på vem som är vald
+            ratt_pin = st.secrets["golf_pins"][anvandare]
             
-            st.success(f'Rundan är sparad PERMANENT i molndatabasen för {anvandare}!')
-            st.balloons()
-            st.text("Laddar om data...")
-            import time
-            time.sleep(2)
-            st.rerun()
+            # Kontrollera om användaren skrev rätt PIN
+            if pin_kod != ratt_pin:
+                st.error("❌ Fel PIN-kod! Rundan sparades inte. Försök igen.")
+            else:
+                # Om PIN-koden är rätt, kör vi SQL-frågan som vanligt
+                insert_query = """
+                    INSERT INTO golf_rundor (anvandare, datum, bana, tee, slag, hcp)
+                    VALUES (:anvandare, :datum, :bana, :tee, :slag, :hcp)
+                """
+                with engine.connect() as conn:
+                    conn.execute(
+                        text(insert_query), 
+                        {
+                            "anvandare": anvandare, 
+                            "datum": datum, 
+                            "bana": bana, 
+                            "tee": 'Gul', 
+                            "slag": int(slag), 
+                            "hcp": float(hcp)
+                        }
+                    )
+                    conn.commit()
+                
+                st.success(f'Rundan är sparad PERMANENT i molndatabasen för {anvandare}!')
+                st.balloons()
+                
+                import time
+                time.sleep(2)
+                st.rerun()
 
 elif choice == 'Se Statistik':
     st.header(f'Utveckling för {anvandare}')
