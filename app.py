@@ -100,9 +100,8 @@ if choice == 'Registrera Runda':
         with col2:
             slag = st.number_input('Antal slag', min_value=50, max_value=150, value=100)
             default_hcp = 21.6 if anvandare == 'Nicklas' else 25.4
-            hcp = st.number_input('Ditt HCP', value=default_hcp, format="%.1f")
-        
-        submit = st.form_submit_button('Spara runda')
+            hcp = st.number_input('Ditt HCP', value=float(default_hcp), min_value=0.0, max_value=40.0, step=0.1, format="%.1f")        
+            submit = st.form_submit_button('Spara runda')
 
         if submit:
             insert_query = """
