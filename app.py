@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 import os
 from datetime import date
 
@@ -15,6 +15,9 @@ def load_data():
         return pd.DataFrame(columns=['Datum', 'Bana', 'Tee', 'Slag', 'HCP'])
 
 df = load_data()
+
+# Sätt sidans konfiguration (Viktigt för att vit bakgrund ska se bra ut)
+st.set_page_config(page_title="Holms GK Tracker", layout="centered")
 
 st.title('⛳ Holms GK Tracker')
 
@@ -30,7 +33,6 @@ if choice == 'Registrera Runda':
             datum = st.date_input('Datum', date.today())
             bana = st.text_input('Bana', 'Holms GK')
         with col2:
-            # RÄTTAT: 'value' istället för 'values'
             slag = st.number_input('Antal slag', min_value=50, max_value=150, value=100)
             hcp = st.number_input('Ditt HCP', value=25.4)
         
@@ -39,7 +41,6 @@ if choice == 'Registrera Runda':
         if submit:
             new_data = pd.DataFrame([[datum, bana, 'Gul', slag, hcp]],
                                     columns=['Datum', 'Bana', 'Tee', 'Slag', 'HCP'])
-            # Uppdatera både lokalt i minnet och i filen
             df = pd.concat([df, new_data], ignore_index=True)
             df.to_csv(DATA_FILE, index=False)
             st.success('Rundan är sparad!')
@@ -49,58 +50,106 @@ elif choice == 'Se Statistik':
     st.header('Din utveckling')
     
     if not df.empty:
-        # Skapa figuren för grafen
-        fig, ax = plt.subplots(figsize=(12, 6))
-        
-        # Förbered data med NumPy
-        x = np.arange(1, len(df) + 1)
+        # 1. Förbered data
+        df['Runda'] = np.arange(1, len(df) + 1)
         y = df['Slag'].values
         snitt = np.mean(y)
-        
-        # 1. Rita linjesegment med dynamisk färg
-        for i in range(len(x) - 1):
-            mellan = (y[i] + y[i+1]) / 2
-            linje_farg = '#2ecc71' if mellan <= snitt else '#e74c3c'
-            ax.plot([x[i], x[i+1]], [y[i], y[i+1]], color=linje_farg, linewidth=1.5, zorder=1)
-
-        # 2. Rita plupparna (inkl. guld för bästa och svart för sämsta)
         basta = np.min(y)
         samsta = np.max(y)
-        
-        for i in range(len(x)):
-            punkt_farg = '#2ecc71' if y[i] <= snitt else '#e74c3c'
-            storlek = 50
-            kant = 'none'
+        trend = df['Slag'].rolling(window=10, min_periods=1).mean()
+
+        # 2. Skapa figuren (Plotly)
+        fig = go.Figure()
+
+        # BLÅ LINJE MELLAN PUNKTER
+        fig.add_trace(go.Scatter(
+            x=df['Runda'], y=y,
+            mode='lines',
+            line=dict(color='#3498db', width=2),
+            name='Runda till runda',
+            hoverinfo='skip'
+        ))
+
+        # TRENDLINJE (Prickad mörkgrå för att inte störa den blå linjen för mycket)
+        fig.add_trace(go.Scatter(
+            x=df['Runda'], y=trend,
+            mode='lines',
+            name='Trend (10 senaste)',
+            line=dict(color='#2c3e50', width=2, dash='dot')
+        ))
+
+        # RITA PLUPPARNA
+        for i in range(len(df)):
+            # Standardfärg (Mörkgrå för vanliga rundor)
+            punkt_farg = '#34495e' 
+            storlek = 10
+            kant_farg = 'white'
+            namn = "Runda"
             
+            # Specialfall: Bästa och Sämsta
             if y[i] == basta:
-                punkt_farg = 'gold'
-                storlek = 130
-                kant = 'black'
+                punkt_farg = '#f1c40f' # Guld
+                kant_farg = 'black'
+                storlek = 9
+                namn = "Bästa runda"
             elif y[i] == samsta:
-                punkt_farg = 'black'
-                storlek = 100
-                kant = 'red'
-                
-            ax.scatter(x[i], y[i], color=punkt_farg, s=storlek, edgecolors=kant, zorder=2)
+                punkt_farg = '#e74c3c' # Röd
+                kant_farg = 'black'
+                storlek = 9
+                namn = "Sämsta runda"
 
-        # 3. Snittlinjen
-        ax.axhline(snitt, color='blue', linestyle='--', linewidth=1, label=f'Snitt: {snitt:.1f}', zorder=0)
+            fig.add_trace(go.Scatter(
+                x=[df['Runda'].iloc[i]], 
+                y=[y[i]],
+                mode='markers',
+                name=namn,
+                marker=dict(size=storlek, color=punkt_farg, line=dict(width=1, color=kant_farg)),
+                hovertemplate=f"<b>Runda {i+1}</b><br>Resultat: {y[i]} slag<extra></extra>",
+                # Visar bara unika etiketter i legenden
+                showlegend=True if (y[i] in [basta, samsta] or i == 0) else False 
+            ))
 
-        # 4. Inställningar för diagrammet
-        ax.set_ylim(70, 130)
-        ax.set_xlim(1, 50)
-        ax.set_xticks([1] + list(np.arange(5, 51, 5)))
-        ax.set_xlabel('Antal rundor')
-        ax.set_ylabel('Antal slag')
-        ax.grid(True, alpha=0.2)
-        ax.legend()
+        # SNITTLINJE
+        fig.add_hline(y=snitt, line_dash="dash", line_color="rgba(0,0,0,0.2)", 
+                      annotation_text=f"Snitt: {snitt:.1f}", annotation_font_color="black")
+
+        # 3. Layout-inställningar (Korrigerad för vit bakgrund och Plotly-version)
+        fig.update_layout(
+            plot_bgcolor='white', 
+            paper_bgcolor='white',
+            hovermode="closest",
+            xaxis=dict(
+                title=dict(text="Antal rundor", font=dict(color='black')),
+                range=[0.5, max(50, len(df)+1)],
+                gridcolor='#f0f0f0',
+                linecolor='black',
+                tickfont=dict(color='black')
+            ),
+            yaxis=dict(
+                title=dict(text="Antal slag", font=dict(color='black')),
+                range=[135, 65], # Lägre slag högre upp
+                gridcolor='#f0f0f0',
+                linecolor='black',
+                tickfont=dict(color='black')
+            ),
+            legend=dict(
+                font=dict(color='black'),
+                orientation="h", 
+                yanchor="bottom", 
+                y=-0.3,
+                xanchor="center", 
+                x=0.5
+            ),
+            height=500,
+            margin=dict(l=10, r=10, t=20, b=10)
+        )
+
+        # Visa grafen
+        st.plotly_chart(fig, use_container_width=True)
         
-        # Visa grafen i Streamlit
-        st.pyplot(fig)
-        
-        # Visa rådatan som en snygg tabell underst
+        # Tabell underst
         st.write("### Senaste rundorna")
-        st.dataframe(df.sort_index(ascending=False))
+        st.dataframe(df.sort_index(ascending=False), use_container_width=True)
         
     else:
-        st.info('Inga rundor registrerade än. Gå till "Registrera Runda" i menyn till vänster!')
+        st.info('Inga rundor registrerade än. Gå till "Registrera Runda" i menyn!')
