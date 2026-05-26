@@ -2,51 +2,68 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-import os
 from datetime import date
+from sqlalchemy import create_engine
 
-# Sätt sidans konfiguration först (Måste ligga allra högst upp)
+# Sätt sidans konfiguration först
 st.set_page_config(page_title="Holms GK Tracker", layout="centered")
+
+# --- KOPPLING TILL NEON POSTGRESQL (Hämtas säkert från Streamlit Secrets) ---
+def get_db_engine():
+    # Streamlit hämtar automatiskt url:en från din Secrets-flik
+    db_url = st.secrets["connections"]["postgresql"]["url"]
+    # SQLAlchemy hanterar uppkopplingen
+    return create_engine(db_url)
+
+engine = get_db_engine()
+
+# Skapa tabellen automatiskt i molnet om den saknas
+def init_db():
+    query = """
+    CREATE TABLE IF NOT EXISTS golf_rundor (
+        id SERIAL PRIMARY KEY,
+        anvandare VARCHAR(50),
+        datum DATE,
+        bana VARCHAR(100),
+        tee VARCHAR(20),
+        slag INT,
+        hcp NUMERIC(4,1)
+    );
+    """
+    with engine.connect() as conn:
+        conn.execute(query)
+
+init_db()
+
+# Funktion för att hämta data live från SQL-databasen
+def load_sql_data():
+    query = "SELECT anvandare, datum, bana, tee, slag, hcp FROM golf_rundor"
+    try:
+        df = pd.read_sql(query, engine)
+        # Konvertera datum-kolumnen till strängar för smidig hantering
+        df['datum'] = df['datum'].astype(str)
+        # Ändra kolumnnamn till Stora bokstäver så resten av koden hänger med
+        df.columns = ['Användare', 'Datum', 'Bana', 'Tee', 'Slag', 'HCP']
+        return df
+    except:
+        return pd.DataFrame(columns=['Användare', 'Datum', 'Bana', 'Tee', 'Slag', 'HCP'])
+
+# Läs in databasen live från molnet
+full_df = load_sql_data()
 
 st.title('⛳ Holms GK Tracker')
 
-# --- ANVÄNDARVAL (Högst upp i sidomenyn) ---
+# --- ANVÄNDARVAL (Ändrat från Polare till Filiph!) ---
 anvandare = st.sidebar.selectbox('Vem är du?', ['Nicklas', 'Filiph'])
 
-# --- SETUP PER ANVÄNDARE ---
-session_key = f'golf_df_{anvandare}'
-
-if session_key not in st.session_state:
-    # Om det är Nicklas som laddar appen, skickar vi med hans gamla rundor som startdata
-    if anvandare == 'Nicklas':
-        start_rundor = [
-            {'Datum': '2026-04-07', 'Bana': 'Holms GK', 'Tee': 'Gul', 'Slag': 102, 'HCP': 25.6},
-            {'Datum': '2026-04-11', 'Bana': 'Holms GK', 'Tee': 'Gul', 'Slag': 107, 'HCP': 25.6},
-            {'Datum': '2026-04-22', 'Bana': 'Holms GK', 'Tee': 'Gul', 'Slag': 101, 'HCP': 25.7},
-            {'Datum': '2026-05-03', 'Bana': 'Holms GK', 'Tee': 'Gul', 'Slag': 101, 'HCP': 25.6},
-            {'Datum': '2026-05-06', 'Bana': 'Holms GK', 'Tee': 'Gul', 'Slag': 99, 'HCP': 25.6},
-            {'Datum': '2026-05-07', 'Bana': 'Holms GK', 'Tee': 'Gul', 'Slag': 91, 'HCP': 25.4},
-            {'Datum': '2026-05-09', 'Bana': 'Holms GK', 'Tee': 'Gul', 'Slag': 89, 'HCP': 25.0},
-            {'Datum': '2026-05-10', 'Bana': 'Holms GK', 'Tee': 'Gul', 'Slag': 93, 'HCP': 22.5},
-            {'Datum': '2026-05-12', 'Bana': 'Holms GK', 'Tee': 'Gul', 'Slag': 99, 'HCP': 23.4},
-            {'Datum': '2026-05-18', 'Bana': 'Holms GK', 'Tee': 'Gul', 'Slag': 94, 'HCP': 22.0},
-            {'Datum': '2026-05-20', 'Bana': 'Holms GK', 'Tee': 'Gul', 'Slag': 94, 'HCP': 22.0},
-            {'Datum': '2026-05-22', 'Bana': 'Holms GK', 'Tee': 'Gul', 'Slag': 95, 'HCP': 22.0},
-            {'Datum': '2026-05-25', 'Bana': 'Holms GK', 'Tee': 'Gul', 'Slag': 91, 'HCP': 21.6}
-        ]
-        st.session_state[session_key] = pd.DataFrame(start_rundor)
-    else:
-        # För din polare startar databasen helt tom
-        st.session_state[session_key] = pd.DataFrame(columns=['Datum', 'Bana', 'Tee', 'Slag', 'HCP'])
-
-# df pekar nu exakt på den valda personens data i den här fliken
-df = st.session_state[session_key]
+# Filtrera ut data så att man bara ser den valda spelarens rundor
+df = full_df[full_df['Användare'] == anvandare].copy()
 
 # --- MENY ---
 choice = st.sidebar.selectbox('Meny', ['Se Statistik', 'Registrera Runda'])
 
 if choice == 'Registrera Runda':
-    st.header(f'Registrera ny runda for {anvandare}')
+    st.header(f'Registrera ny runda för {anvandare}')
 
     with st.form('golf_form'):
         col1, col2 = st.columns(2)
@@ -55,26 +72,32 @@ if choice == 'Registrera Runda':
             bana = st.text_input('Bana', 'Holms GK')
         with col2:
             slag = st.number_input('Antal slag', min_value=50, max_value=150, value=100)
-            hcp = st.number_input('Ditt HCP', value=21.6)
+            hcp = st.number_input('Ditt HCP', value=21.6 if anvandare == 'Nicklas' else 25.4, format="%.1f")
         
         submit = st.form_submit_button('Spara runda')
 
         if submit:
-            new_data = pd.DataFrame([[datum, bana, 'Gul', slag, hcp]],
-                                    columns=['Datum', 'Bana', 'Tee', 'Slag', 'HCP'])
+            # Sätt in raden i SQL-databasen live
+            insert_query = """
+                INSERT INTO golf_rundor (anvandare, datum, bana, tee, slag, hcp)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """
+            with engine.connect() as conn:
+                conn.execute(insert_query, (anvandare, datum, bana, 'Gul', int(slag), float(hcp)))
             
-            st.session_state[session_key] = pd.concat([st.session_state[session_key], new_data], ignore_index=True)
-            df = st.session_state[session_key]
-            
-            st.success(f'Rundan är sparad på {anvandare}!')
+            st.success(f'Rundan är sparad PERMANENT i molndatabasen för {anvandare}!')
             st.balloons()
+            st.text("Laddar om data...")
+            st.rerun()
 
 elif choice == 'Se Statistik':
     st.header(f'Utveckling för {anvandare}')
     
     if not df.empty:
-        # 1. Förbered data
+        # 1. Förbered data (Sortera kronologiskt efter datum)
+        df = df.sort_values('Datum').reset_index(drop=True)
         df['Runda'] = np.arange(1, len(df) + 1)
+        
         y = df['Slag'].values
         snitt = np.mean(y)
         basta = np.min(y)
@@ -125,7 +148,7 @@ elif choice == 'Se Statistik':
                 mode='markers',
                 name=namn,
                 marker=dict(size=storlek, color=punkt_farg, line=dict(width=1, color=kant_farg)),
-                hovertemplate=f"<b>Runda {i+1}</b><br>Resultat: {y[i]} slag<extra></extra>",
+                hovertemplate=f"<b>Runda {i+1}</b><br>Datum: {df['Datum'].iloc[i]}<br>Resultat: {y[i]} slag<extra></extra>",
                 showlegend=True if (y[i] in [basta, samsta] or i == 0) else False 
             ))
 
@@ -147,7 +170,7 @@ elif choice == 'Se Statistik':
             ),
             yaxis=dict(
                 title=dict(text="Antal slag", font=dict(color='black')),
-                range=[65, 135],
+                range=[65, 135], # Kurvan går neråt vid bättre spel!
                 gridcolor='#f0f0f0',
                 linecolor='black',
                 tickfont=dict(color='black')
