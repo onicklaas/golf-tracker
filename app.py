@@ -34,15 +34,17 @@ def init_db():
 
 init_db()
 
+# --- Hämta 'id' från databasen och döp kolumnen till 'ID' ---
 def load_sql_data():
-    query = "SELECT anvandare, datum, bana, tee, slag, hcp FROM golf_rundor"
+    st.cache_data.clear()
+    query = "SELECT id, anvandare, datum, bana, tee, slag, hcp FROM golf_rundor"
     try:
         df = pd.read_sql(text(query), engine)
         df['datum'] = df['datum'].astype(str)
-        df.columns = ['Användare', 'Datum', 'Bana', 'Tee', 'Slag', 'HCP']
+        df.columns = ['ID', 'Användare', 'Datum', 'Bana', 'Tee', 'Slag', 'HCP']
         return df
-    except:
-        return pd.DataFrame(columns=['Användare', 'Datum', 'Bana', 'Tee', 'Slag', 'HCP'])
+    except Exception as e:
+        return pd.DataFrame(columns=['ID', 'Användare', 'Datum', 'Bana', 'Tee', 'Slag', 'HCP'])
 
 full_df = load_sql_data()
 
@@ -51,15 +53,13 @@ st.title('⛳ Holms GK Tracker')
 # --- ANVÄNDARVAL (Sidomeny) ---
 anvandare = st.sidebar.selectbox('Vem är du?', ['Nicklas', 'Filiph'])
 
-# --- INLOGGNINGS-LOGIK MED SESSION STATE ---
-# Vi skapar en nyckel i minnet för att hålla koll på vem som är inloggad
+# --- INLOGGNINGS-LOGIK ---
 if "inloggad_som" not in st.session_state:
     st.session_state["inloggad_som"] = None
 
-# Om man byter namn i listan, eller inte är inloggad alls, visa lösenordsfältet
 if st.session_state["inloggad_som"] != anvandare:
     st.header(f"🔒 Låst: {anvandare}")
-    st.write(f"Ange lösenordet för {anvandare} för att se statistik och registrera rundor.")
+    st.write(f"Ange lösenordet för {anvandare} för att se statistik och registrar runda.")
     
     lozenord = st.text_input("Lösenord", type="password")
     if st.button("Logga in"):
@@ -73,11 +73,10 @@ if st.session_state["inloggad_som"] != anvandare:
         else:
             st.error("❌ Fel lösenord, försök igen.")
             
-    # Stoppa appen här så att obehöriga inte ser menyn eller grafen
     st.stop()
 
 
-# --- OM MAN ÄR INLOGGAD, VISA RESTEN AV APPEN ---
+# --- OM MAN ÄR INLOGGAD ---
 st.sidebar.success(f"Inloggad som: {anvandare}")
 if st.sidebar.button("Logga ut"):
     st.session_state["inloggad_som"] = None
@@ -189,17 +188,17 @@ elif choice == 'Se Statistik':
                 range=[0.5, max(50, len(df)+1)],
                 gridcolor='#f0f0f0',
                 linecolor='black',
-                tickfont=dict(color='black')  # Siffrorna på X-axeln blir svarta
+                tickfont=dict(color='black')
             ),
             yaxis=dict(
                 title=dict(text="Antal slag", font=dict(color='black')),
                 range=[65, 135], 
                 gridcolor='#f0f0f0',
                 linecolor='black',
-                tickfont=dict(color='black')  # Siffrorna på Y-axeln blir svarta
+                tickfont=dict(color='black')
             ),
             legend=dict(
-                font=dict(color='black'),      # Texten i förklaringen längst ner blir svart
+                font=dict(color='black'),
                 orientation="h", 
                 yanchor="bottom", 
                 y=-0.3,
@@ -211,7 +210,36 @@ elif choice == 'Se Statistik':
         )
 
         st.plotly_chart(fig, use_container_width=True)
+
         st.write(f"### Senaste rundorna för {anvandare}")
-        st.dataframe(df.sort_index(ascending=False), use_container_width=True)
+        st.dataframe(df.sort_index(ascending=False), use_container_width=True, hide_index=True)
+        
+        # --- HÄR STARTAR DET SOM KLIPPETS BORT ---
+        st.markdown("---")
+        st.write("### 🗑️ Radera en felmatad runda")
+        
+        delete_df = df.sort_values('Datum', ascending=False)
+        round_options = [
+            f"ID: {row['ID']} | {row['Datum']} - {row['Bana']} ({row['Slag']} slag)" 
+            for _, row in delete_df.iterrows()
+        ]
+        
+        if round_options:
+            valda_alternativ = st.selectbox("Välj vilken runda du vill ta bort:", round_options)
+            valda_id = int(valda_alternativ.split(" | ")[0].replace("ID: ", ""))
+            
+            if st.button("Radera vald runda permanent", type="primary"):
+                delete_query = "DELETE FROM golf_rundor WHERE id = :id"
+                
+                with engine.connect() as conn:
+                    conn.execute(text(delete_query), {"id": valda_id})
+                    conn.commit()
+                
+                st.warning("Rundan har raderats från databasen.")
+                time.sleep(1.5)
+                st.rerun()
+        else:
+            st.info("Inga rundor att radera.")
+            
     else:
         st.info(f'Inga rundor registrerade än. Gå till "Registrera Runda"!')
