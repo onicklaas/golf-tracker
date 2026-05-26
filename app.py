@@ -6,15 +6,12 @@ import os
 from datetime import date
 
 # --- SETUP ---
-DATA_FILE = 'golf_rundor.csv'
+# Vi skapar en tom DataFrame i användarens unika session om den inte redan finns
+if 'golf_df' not in st.session_state:
+    st.session_state.golf_df = pd.DataFrame(columns=['Datum', 'Bana', 'Tee', 'Slag', 'HCP'])
 
-def load_data():
-    if os.path.exists(DATA_FILE):
-        return pd.read_csv(DATA_FILE)
-    else:
-        return pd.DataFrame(columns=['Datum', 'Bana', 'Tee', 'Slag', 'HCP'])
-
-df = load_data()
+# Vi sätter df till att peka på denna specifika användares isolerade data
+df = st.session_state.golf_df
 
 # Sätt sidans konfiguration (Viktigt för att vit bakgrund ska se bra ut)
 st.set_page_config(page_title="Holms GK Tracker", layout="centered")
@@ -41,8 +38,13 @@ if choice == 'Registrera Runda':
         if submit:
             new_data = pd.DataFrame([[datum, bana, 'Gul', slag, hcp]],
                                     columns=['Datum', 'Bana', 'Tee', 'Slag', 'HCP'])
-            df = pd.concat([df, new_data], ignore_index=True)
-            df.to_csv(DATA_FILE, index=False)
+            
+            # Vi lägger till den nya rundan i användarens unika session_state
+            st.session_state.golf_df = pd.concat([st.session_state.golf_df, new_data], ignore_index=True)
+            
+            # Uppdatera den lokala variabeln df så att grafen ritas om direkt
+            df = st.session_state.golf_df
+            
             st.success('Rundan är sparad!')
             st.balloons()
 
@@ -153,3 +155,21 @@ elif choice == 'Se Statistik':
         
     else:
         st.info('Inga rundor registrerade än. Gå till "Registrera Runda" i menyn!')
+
+
+# NUMPY
+# Matematikern (Numerical Python), snabbare beräkningar
+# Allt som har med matte, logik och stora mängder siffron att göra
+# --------------------------
+# PANDAS
+# Skapar "DataFrame", tabell med rader och kolumner
+# Läser in min golf_rundor.csv, där den läser in filen, sorterar rundor, lägger till nya rader osv
+# Allt som handlar om att organisera, filtrera och hantera filer/tabeller
+# --------------------------
+# MATPLOTLIB
+# Tar siffrorna från NumPy och tabellerna från Pandas och ritar ut den som linjer, cirklar, punkter på skärmen
+# Sköter all typ av CSS 
+# Allt som handlar om det visuella. Färger, linjer, titlar och diagram
+
+# Gör graferna snyggare
+# plt.style.use('ggplot')
