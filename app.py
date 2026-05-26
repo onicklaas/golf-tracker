@@ -5,24 +5,30 @@ import plotly.graph_objects as go
 import os
 from datetime import date
 
-# --- SETUP ---
-# Vi skapar en tom DataFrame i användarens unika session om den inte redan finns
-if 'golf_df' not in st.session_state:
-    st.session_state.golf_df = pd.DataFrame(columns=['Datum', 'Bana', 'Tee', 'Slag', 'HCP'])
-
-# Vi sätter df till att peka på denna specifika användares isolerade data
-df = st.session_state.golf_df
-
-# Sätt sidans konfiguration (Viktigt för att vit bakgrund ska se bra ut)
+# Sätt sidans konfiguration först (Måste ligga allra högst upp)
 st.set_page_config(page_title="Holms GK Tracker", layout="centered")
 
 st.title('⛳ Holms GK Tracker')
+
+# --- ANVÄNDARVAL (Högst upp i sidomenyn) ---
+# Här lägger du in era två namn
+anvandare = st.sidebar.selectbox('Vem är du?', ['Nicklas', 'Filiph'])
+
+# --- SETUP PER ANVÄNDARE ---
+# Vi skapar ett unikt session_state-id baserat på namnet som är valt
+session_key = f'golf_df_{anvandare}'
+
+if session_key not in st.session_state:
+    st.session_state[session_key] = pd.DataFrame(columns=['Datum', 'Bana', 'Tee', 'Slag', 'HCP'])
+
+# df pekar nu exakt på den valda personens data i den här fliken
+df = st.session_state[session_key]
 
 # --- MENY ---
 choice = st.sidebar.selectbox('Meny', ['Se Statistik', 'Registrera Runda'])
 
 if choice == 'Registrera Runda':
-    st.header('Registrera ny runda')
+    st.header(f'Registrera ny runda för {anvandare}')
 
     with st.form('golf_form'):
         col1, col2 = st.columns(2)
@@ -39,17 +45,15 @@ if choice == 'Registrera Runda':
             new_data = pd.DataFrame([[datum, bana, 'Gul', slag, hcp]],
                                     columns=['Datum', 'Bana', 'Tee', 'Slag', 'HCP'])
             
-            # Vi lägger till den nya rundan i användarens unika session_state
-            st.session_state.golf_df = pd.concat([st.session_state.golf_df, new_data], ignore_index=True)
+            # Sparar specifikt i den valda användarens "pott"
+            st.session_state[session_key] = pd.concat([st.session_state[session_key], new_data], ignore_index=True)
+            df = st.session_state[session_key]
             
-            # Uppdatera den lokala variabeln df så att grafen ritas om direkt
-            df = st.session_state.golf_df
-            
-            st.success('Rundan är sparad!')
+            st.success(f'Rundan är sparad på {anvandare}!')
             st.balloons()
 
 elif choice == 'Se Statistik':
-    st.header('Din utveckling')
+    st.header(f'Utveckling för {anvandare}')
     
     if not df.empty:
         # 1. Förbered data
@@ -72,7 +76,7 @@ elif choice == 'Se Statistik':
             hoverinfo='skip'
         ))
 
-        # TRENDLINJE (Prickad mörkgrå för att inte störa den blå linjen för mycket)
+        # TRENDLINJE
         fig.add_trace(go.Scatter(
             x=df['Runda'], y=trend,
             mode='lines',
@@ -82,20 +86,18 @@ elif choice == 'Se Statistik':
 
         # RITA PLUPPARNA
         for i in range(len(df)):
-            # Standardfärg (Mörkgrå för vanliga rundor)
             punkt_farg = '#34495e' 
             storlek = 10
             kant_farg = 'white'
             namn = "Runda"
             
-            # Specialfall: Bästa och Sämsta
             if y[i] == basta:
-                punkt_farg = '#f1c40f' # Guld
+                punkt_farg = '#f1c40f'
                 kant_farg = 'black'
                 storlek = 9
                 namn = "Bästa runda"
             elif y[i] == samsta:
-                punkt_farg = '#e74c3c' # Röd
+                punkt_farg = '#e74c3c'
                 kant_farg = 'black'
                 storlek = 9
                 namn = "Sämsta runda"
@@ -107,7 +109,6 @@ elif choice == 'Se Statistik':
                 name=namn,
                 marker=dict(size=storlek, color=punkt_farg, line=dict(width=1, color=kant_farg)),
                 hovertemplate=f"<b>Runda {i+1}</b><br>Resultat: {y[i]} slag<extra></extra>",
-                # Visar bara unika etiketter i legenden
                 showlegend=True if (y[i] in [basta, samsta] or i == 0) else False 
             ))
 
@@ -115,7 +116,7 @@ elif choice == 'Se Statistik':
         fig.add_hline(y=snitt, line_dash="dash", line_color="rgba(0,0,0,0.2)", 
                       annotation_text=f"Snitt: {snitt:.1f}", annotation_font_color="black")
 
-        # 3. Layout-inställningar (Korrigerad för vit bakgrund och Plotly-version)
+        # 3. Layout-inställningar
         fig.update_layout(
             plot_bgcolor='white', 
             paper_bgcolor='white',
@@ -129,7 +130,7 @@ elif choice == 'Se Statistik':
             ),
             yaxis=dict(
                 title=dict(text="Antal slag", font=dict(color='black')),
-                range=[135, 65], # Lägre slag högre upp
+                range=[135, 65],
                 gridcolor='#f0f0f0',
                 linecolor='black',
                 tickfont=dict(color='black')
@@ -146,30 +147,10 @@ elif choice == 'Se Statistik':
             margin=dict(l=10, r=10, t=20, b=10)
         )
 
-        # Visa grafen
         st.plotly_chart(fig, use_container_width=True)
         
-        # Tabell underst
-        st.write("### Senaste rundorna")
+        st.write(f"### Senaste rundorna för {anvandare}")
         st.dataframe(df.sort_index(ascending=False), use_container_width=True)
         
     else:
-        st.info('Inga rundor registrerade än. Gå till "Registrera Runda" i menyn!')
-
-
-# NUMPY
-# Matematikern (Numerical Python), snabbare beräkningar
-# Allt som har med matte, logik och stora mängder siffron att göra
-# --------------------------
-# PANDAS
-# Skapar "DataFrame", tabell med rader och kolumner
-# Läser in min golf_rundor.csv, där den läser in filen, sorterar rundor, lägger till nya rader osv
-# Allt som handlar om att organisera, filtrera och hantera filer/tabeller
-# --------------------------
-# MATPLOTLIB
-# Tar siffrorna från NumPy och tabellerna från Pandas och ritar ut den som linjer, cirklar, punkter på skärmen
-# Sköter all typ av CSS 
-# Allt som handlar om det visuella. Färger, linjer, titlar och diagram
-
-# Gör graferna snyggare
-# plt.style.use('ggplot')
+        st.info(f'Inga rundor registrerade för {anvandare} än. Gå till "Registrera Runda"!')
