@@ -182,11 +182,33 @@ elif choice == 'Se Statistik':
                       annotation_text=f"Snitt: {snitt:.1f}", annotation_font_color="black")
 
         fig.update_layout(
-            plot_bgcolor='white', paper_bgcolor='white', hovermode="closest",
-            xaxis=dict(title=dict(text="Antal rundor"), range=[0.5, max(50, len(df)+1)], gridcolor='#f0f0f0', linecolor='black'),
-            yaxis=dict(title=dict(text="Antal slag"), range=[65, 135], gridcolor='#f0f0f0', linecolor='black'),
-            legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5),
-            height=500, margin=dict(l=10, r=10, t=20, b=10)
+            plot_bgcolor='white', 
+            paper_bgcolor='white',
+            hovermode="closest",
+            xaxis=dict(
+                title=dict(text="Antal rundor", font=dict(color='black')),
+                range=[0.5, max(50, len(df)+1)],
+                gridcolor='#f0f0f0',
+                linecolor='black',
+                tickfont=dict(color='black')  # Siffrorna på X-axeln blir svarta
+            ),
+            yaxis=dict(
+                title=dict(text="Antal slag", font=dict(color='black')),
+                range=[65, 135], 
+                gridcolor='#f0f0f0',
+                linecolor='black',
+                tickfont=dict(color='black')  # Siffrorna på Y-axeln blir svarta
+            ),
+            legend=dict(
+                font=dict(color='black'),      # Texten i förklaringen längst ner blir svart
+                orientation="h", 
+                yanchor="bottom", 
+                y=-0.3,
+                xanchor="center", 
+                x=0.5
+            ),
+            height=500,
+            margin=dict(l=10, r=10, t=20, b=10)
         )
 
         st.plotly_chart(fig, use_container_width=True)
