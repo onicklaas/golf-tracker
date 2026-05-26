@@ -18,6 +18,7 @@ Thumbs.db
 
 # Streamlit
 .streamlit/
+.streamlit/secrets.toml
 
 # Data (Valfritt: Ta bort raden under om du VILL att dina rundor ska ligga på GitHub)
 *.csv

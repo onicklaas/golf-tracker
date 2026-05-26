@@ -3,8 +3,7 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 from datetime import date
-from sqlalchemy import create_engine
-
+from sqlalchemy import create_engine, text
 # Sätt sidans konfiguration först
 st.set_page_config(page_title="Holms GK Tracker", layout="centered")
 
@@ -31,7 +30,9 @@ def init_db():
     );
     """
     with engine.connect() as conn:
-        conn.execute(query)
+        # Ändra raden under till detta:
+        conn.execute(text(query))
+        conn.commit() # Lägg även till denna rad för att spara ändringen i databasen!
 
 init_db()
 
@@ -80,14 +81,28 @@ if choice == 'Registrera Runda':
             # Sätt in raden i SQL-databasen live
             insert_query = """
                 INSERT INTO golf_rundor (anvandare, datum, bana, tee, slag, hcp)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                VALUES (:anvandare, :datum, :bana, :tee, :slag, :hcp)
             """
             with engine.connect() as conn:
-                conn.execute(insert_query, (anvandare, datum, bana, 'Gul', int(slag), float(hcp)))
+                # Ändra till text() och skicka med parametrarna som en ordbok (dict)
+                conn.execute(
+                    text(insert_query), 
+                    {
+                        "anvandare": anvandare, 
+                        "datum": datum, 
+                        "bana": bana, 
+                        "tee": 'Gul', 
+                        "slag": int(slag), 
+                        "hcp": float(hcp)
+                    }
+                )
+                conn.commit() # Sparar ändringen permanent i Postgres
             
             st.success(f'Rundan är sparad PERMANENT i molndatabasen för {anvandare}!')
             st.balloons()
             st.text("Laddar om data...")
+            import time
+            time.sleep(2)
             st.rerun()
 
 elif choice == 'Se Statistik':
