@@ -147,7 +147,7 @@ elif choice == 'Se Statistik':
             ),
             yaxis=dict(
                 title=dict(text="Antal slag", font=dict(color='black')),
-                range=[135, 65],
+                range=[65, 135],
                 gridcolor='#f0f0f0',
                 linecolor='black',
                 tickfont=dict(color='black')
