@@ -50,12 +50,14 @@ Skapa filen `.streamlit/secrets.toml` (den är gitignore:ad och ska aldrig check
 
 ```toml
 [connections.postgresql]
-url = "postgresql://användare:lösenord@host/dbnamn?sslmode=require"
+url = "postgresql://<användare>:<lösenord>@<host>/<dbnamn>?sslmode=require"
 
 [golf_pins]
-Nicklas = "1234"
-Filiph = "5678"
+Nicklas = "<pin för Nicklas>"
+Filiph = "<pin för Filiph>"
 ```
+
+Fyll i era egna värden – filen ska aldrig checkas in.
 
 ### 3. Kör appen
 
